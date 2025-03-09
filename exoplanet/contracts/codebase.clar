@@ -1,11 +1,13 @@
 ;; Interplanetary Exoplanet Research Archive
-;; Data model with additional environmental parameters and tracking features
+;; Version: 3.0
+;; Full implementation with data verification system and comprehensive error handling
 
 ;; Constants and Error Codes
 (define-constant CONTRACT-OWNER tx-sender)
 (define-constant ERR-NOT-AUTHORIZED (err u401))
 (define-constant ERR-NOT-FOUND (err u404))
 (define-constant ERR-INVALID-PARAMS (err u400))
+(define-constant ERR-PLANET-VERIFIED (err u403))
 (define-constant ERR-LIST-FULL (err u429))
 
 ;; Data Validation Constants
@@ -34,7 +36,8 @@
             discovered-at: uint
         },
         settings: {
-            is-public: bool
+            is-public: bool,
+            planet-verified: bool
         }
     }
 )
@@ -148,7 +151,8 @@
                     discovered-at: current-time
                 },
                 settings: {
-                    is-public: is-public
+                    is-public: is-public,
+                    planet-verified: false
                 }
             }
         )
@@ -171,6 +175,7 @@
         (is-public bool))
     (let ((planet (unwrap! (map-get? exoplanets { planet-id: planet-id }) ERR-NOT-FOUND)))
         (asserts! (is-planet-owner planet-id) ERR-NOT-AUTHORIZED)
+        (asserts! (not (get planet-verified (get settings planet))) ERR-PLANET-VERIFIED)
         
         (map-set exoplanets
             { planet-id: planet-id }
@@ -180,12 +185,28 @@
                     stellar-category: stellar-category,
                     composition-type: composition-type
                 },
-                settings: {
+                settings: (merge (get settings planet) {
                     is-public: is-public
-                }
+                })
             })
         )
         (ok true)
+    )
+)
+
+;; Verifies exoplanet data (making it immutable)
+(define-public (verify-exoplanet-data (planet-id uint))
+    (let ((planet (unwrap! (map-get? exoplanets { planet-id: planet-id }) ERR-NOT-FOUND)))
+        (asserts! (is-planet-owner planet-id) ERR-NOT-AUTHORIZED)
+        
+        (ok (map-set exoplanets
+            { planet-id: planet-id }
+            (merge planet {
+                settings: (merge (get settings planet) {
+                    planet-verified: true
+                })
+            })
+        ))
     )
 )
 
